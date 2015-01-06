@@ -7,6 +7,11 @@ from collections import namedtuple
 
 class BuildError(Exception):pass
 
+ReleaseName = ""
+ReleaseVersion = "1.0.0"
+ReleaseRegion = "China"
+ipaPrefix = "zhxy"
+
 builds = []
 buildedPaths = []
 
@@ -16,15 +21,54 @@ BuildParams = namedtuple("BuildParams", \
 def addBuildParam(*kwarg):
     builds.append(BuildParams(*kwarg))
 
-addBuildParam("pp",                 "proj.ios.pp",           "zhxy_pp",              "",                     "",                 "release",       True,    False,          "",            "")
+#addBuildParam("appleStore",                 "proj.ios.appleStore",           "zhxy_appleStore",              "",                     "",                 "release",       True,    False,          "",            "")
+
+def changeVersion(fileName):
+    fr = open(fileName, 'r')
+
+    lines = fr.readlines()
+    fr.close()
+
+    fw = open(fileName, 'w')
+
+    changeNextLine = False
+    for line in lines:
+        if changeNextLine:
+            fw.write(line[:line.find('>')+1] + ReleaseVersion + line[line.find('</'):])
+            changeNextLine = False
+        else:
+            if 'CFBundleShortVersionString' in line:
+                changeNextLine = True
+            fw.write(line)
+    fw.close()
+
+def changeAppName(fileName, buildData):
+    fr = open(fileName, 'r')
+
+    lines = fr.readlines()
+    fr.close()
+
+    fw = open(fileName, 'w')
+
+    changeNextLine = False
+    for line in lines:
+        if changeNextLine:
+            if ReleaseName != None:
+                fw.write(line[:line.find('>')+1] + ReleaseName + line[line.find('</'):])
+            changeNextLine = False
+        else:
+            if 'CFBundleDisplayName' in line:
+                changeNextLine = True
+            fw.write(line)
+    fw.close()
 
 def xcrun(buildData, appPath, endWith=""):
     xcrunShell = """
     xcrun -sdk iphoneos PackageApplication -v %s -o ~/Desktop/%s_%s%s.ipa
     """%(\
             appPath, \
-            ipaName+buildData.name+('_HD' if buildData.isHD else '_LD'), \
-            CFBundleShortVersionString, \
+            ipaPrefix+ReleaseRegion+buildData.name+('_HD' if buildData.isHD else '_LD'), \
+            ReleaseVersion, \
             endWith)
 
     if os.system(xcrunShell):
@@ -34,27 +78,27 @@ def xcodebuild_ipa(buildData):
     remove_adhoc = """
     rm ~/Desktop/%s_%s.ipa
     """%(\
-            ipaName+buildData.name+'_adhoc'+('_HD' if buildData.isHD else '_LD'), \
-            CFBundleShortVersionString)
+            ipaPrefix+ReleaseRegion+buildData.name+'_adhoc'+('_HD' if buildData.isHD else '_LD'), \
+            ReleaseVersion)
 
     xcrunShell_adhoc = """
     xcodebuild -exportArchive -exportFormat ipa -archivePath "temp.xcarchive" -exportPath "~/Desktop/%s_%s.ipa" -exportProvisioningProfile %s
     """%(\
-            ipaName+buildData.name+'_adhoc'+('_HD' if buildData.isHD else '_LD'), \
-            CFBundleShortVersionString, \
+            ipaPrefix+ReleaseRegion+buildData.name+'_adhoc'+('_HD' if buildData.isHD else '_LD'), \
+            ReleaseVersion, \
             buildData.adhocCerName)
 
     remove_appstore = """
     rm ~/Desktop/%s_%s.ipa
     """%(\
-            ipaName+buildData.name+'_appstore'+('_HD' if buildData.isHD else '_LD'), \
-            CFBundleShortVersionString)
+            ipaPrefix+ReleaseRegion+buildData.name+'_release'+('_HD' if buildData.isHD else '_LD'), \
+            ReleaseVersion)
 
     xcrunShell_appstore = """
     xcodebuild -exportArchive -exportFormat ipa -archivePath "temp.xcarchive" -exportPath "~/Desktop/%s_%s.ipa" -exportProvisioningProfile %s
     """%(\
-            ipaName+buildData.name+'_appstore'+('_HD' if buildData.isHD else '_LD'), \
-            CFBundleShortVersionString, \
+            ipaPrefix+ReleaseRegion+buildData.name+'_release'+('_HD' if buildData.isHD else '_LD'), \
+            ReleaseVersion, \
             buildData.appstoreCerName)
 
     os.system(remove_adhoc);
@@ -64,48 +108,6 @@ def xcodebuild_ipa(buildData):
     os.system(remove_appstore);
     if os.system(xcrunShell_appstore):
         raise BuildError
-
-def changeVersion(fileName):
-    #fr = open('Info.plist', 'r')
-    fr = open(fileName, 'r')
-
-    lines = fr.readlines()
-    fr.close()
-
-    #fw = open('Info.plist', 'w')
-    fw = open(fileName, 'w')
-
-    changeNextLine = False
-    for line in lines:
-        if changeNextLine:
-            fw.write(line[:line.find('>')+1] + CFBundleShortVersionString + line[line.find('</'):])
-            changeNextLine = False
-        else:
-            if 'CFBundleShortVersionString' in line:
-                changeNextLine = True
-            fw.write(line)
-    fw.close()
-
-def changeAppName(fileName, buildData):
-    #fr = open('Info.plist', 'r')
-    fr = open(fileName, 'r')
-
-    lines = fr.readlines()
-    fr.close()
-
-    #fw = open('Info.plist', 'w')
-    fw = open(fileName, 'w')
-
-    changeNextLine = False
-    for line in lines:
-        if changeNextLine:
-            fw.write(line[:line.find('>')+1] + CFBundleDisplayName + line[line.find('</'):])
-            changeNextLine = False
-        else:
-            if 'CFBundleDisplayName' in line:
-                changeNextLine = True
-            fw.write(line)
-    fw.close()
 
 def buildAll(buildData):
     print "------------start build " + buildData.name + "------------";
@@ -218,6 +220,6 @@ if __name__ == "__main__":
             print "build %s failed" % buile.name
             break;
     else:
-        print ""
+        print "build end with all successful"
         sys.exit(0)
     sys.exit(1)
